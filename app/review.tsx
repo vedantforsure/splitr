@@ -1,13 +1,14 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { MotiView } from 'moti';
-import { useMemo, useState } from 'react';
+import { AnimatePresence, MotiView } from 'moti';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Easing } from 'react-native-reanimated';
 
 import { AssignChips } from '@/components/assign-chips';
+import { ctaMorph } from '@/components/cta-morph';
 import { AvatarStack } from '@/components/avatar';
 import { ConfirmSheet } from '@/components/confirm-sheet';
 import { EntrySheet, SheetState } from '@/components/entry-sheet';
@@ -36,6 +37,8 @@ export default function ReviewScreen() {
   const [taxOpen, setTaxOpen] = useState(false);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [confirmUnsplit, setConfirmUnsplit] = useState(false);
+  // The settle screen's CTA morphs out of this one; record where it sits.
+  const ctaRef = useRef<View>(null);
 
   const total = useMemo(() => grandTotal(state), [state]);
   const unassigned = useMemo(() => unassignedAmount(state), [state]);
@@ -146,11 +149,14 @@ export default function ReviewScreen() {
                 </View>
               </Pressable>
 
+              <AnimatePresence>
               {isOpen && (
                 <MotiView
                   from={{ opacity: 0, translateY: -6 }}
                   animate={{ opacity: 1, translateY: 0 }}
+                  exit={{ opacity: 0, translateY: -6 }}
                   transition={{ type: 'timing', duration: 140, easing: Easing.bezier(0.23, 1, 0.32, 1) }}
+                  exitTransition={{ type: 'timing', duration: 110, easing: Easing.bezier(0.23, 1, 0.32, 1) }}
                   className="gap-[12px] pt-[12px]">
                   {/* Quantity stepper */}
                   <View className="flex-row items-center justify-between">
@@ -187,6 +193,7 @@ export default function ReviewScreen() {
                   <AssignChips item={item} people={people} onEdit={() => setSheet({ kind: 'editItem', item })} />
                 </MotiView>
               )}
+              </AnimatePresence>
             </MotiView>
           );
         })}
@@ -213,11 +220,14 @@ export default function ReviewScreen() {
           <Text style={{ fontFamily: FONT, fontSize: 16, letterSpacing: -0.48, color: C.text, fontVariant: ['tabular-nums'] }}>{money(taxAmount)}</Text>
         </Pressable>
 
+        <AnimatePresence>
         {taxOpen && (
           <MotiView
             from={{ opacity: 0, translateY: -4 }}
             animate={{ opacity: 1, translateY: 0 }}
+            exit={{ opacity: 0, translateY: -4 }}
             transition={{ type: 'timing', duration: 120, easing: Easing.bezier(0.23, 1, 0.32, 1) }}
+            exitTransition={{ type: 'timing', duration: 100, easing: Easing.bezier(0.23, 1, 0.32, 1) }}
             className="mb-[6px] mt-[4px]">
             <Text className="mb-[8px]" style={{ fontFamily: FONT, fontSize: T.tiny, color: C.textFaint }}>
               How should tax be shared?
@@ -243,6 +253,7 @@ export default function ReviewScreen() {
             </View>
           </MotiView>
         )}
+        </AnimatePresence>
 
         {/* Avatar stack + add on the left, running total on the right */}
         <View className="mt-[12px] flex-row items-center justify-between">
@@ -269,7 +280,14 @@ export default function ReviewScreen() {
             <Text style={{ fontFamily: FONT, fontSize: T.tiny, color: C.textDim }}>Split evenly</Text>
             <Toggle value={splitEvenly} onChange={actions.setSplitEvenly} />
           </View>
-          <View className="flex-1">
+          <View
+            ref={ctaRef}
+            className="flex-1"
+            onLayout={() => {
+              ctaRef.current?.measureInWindow((x, _y, w) => {
+                ctaMorph.from = { left: x, width: w };
+              });
+            }}>
             <PrimaryCTA label="Review & collect" onPress={onContinue} />
           </View>
         </View>

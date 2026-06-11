@@ -2,13 +2,14 @@ import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { MotiView } from 'moti';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Share, Text, View } from 'react-native';
 import Animated, { Easing, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
-import { PrimaryCTA } from '@/components/primary-cta';
+import { finishMorph, MorphingFooterCTA } from '@/components/cta-morph';
 import { ProgressBar } from '@/components/progress-bar';
 import { RollingNumber } from '@/components/rolling-number';
 import { ScreenHeader } from '@/components/screen-header';
@@ -99,6 +100,21 @@ export default function SettleScreen() {
   const pendingCount = others.filter((p) => statusOf(p.id) !== 'paid').length;
   const allDone = pendingCount === 0;
 
+  // The green Finish pill morphs into the done screen's success circle —
+  // record where it sits at the moment of the tap, then navigate.
+  const finishRef = useRef<View>(null);
+  const finish = () => {
+    const node = finishRef.current;
+    if (!node) {
+      router.push('/done');
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      finishMorph.from = { x, y, width, height };
+      router.push('/done');
+    });
+  };
+
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: C.bg }}>
       <ScreenHeader
@@ -174,12 +190,14 @@ export default function SettleScreen() {
       </ScrollView>
 
       <View className="px-[20px] pb-[8px] pt-[12px]">
-        <PrimaryCTA
-          label={allDone ? 'Finish' : `Request from everyone${pendingCount ? ` (${pendingCount})` : ''}`}
-          icon={allDone ? 'arrow-right' : 'send'}
-          color={allDone ? C.green : C.accent}
-          onPress={allDone ? () => router.push('/done') : requestAll}
-        />
+        {/* Arrives mid-morph from the review screen's CTA, then expands to full width */}
+        <View ref={finishRef} collapsable={false}>
+          <MorphingFooterCTA
+            label={allDone ? 'Finish' : 'Request from everyone'}
+            color={allDone ? C.green : C.accent}
+            onPress={allDone ? finish : requestAll}
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -221,6 +239,14 @@ function PersonRow({
           </Text>
         </View>
 
+        {/* Re-keyed per status: the incoming control scales up out of the
+            outgoing one's spot instead of snapping in, while the row's layout
+            transition carries it to its new place in the list */}
+        <MotiView
+          key={status}
+          from={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'timing', duration: 160, easing: Easing.bezier(0.23, 1, 0.32, 1) }}>
         {status === 'paid' ? (
           // Tappable on purpose: a mis-tapped "paid" needs a way back
           <Pressable
@@ -258,6 +284,7 @@ function PersonRow({
             </Pressable>
           </View>
         )}
+        </MotiView>
       </View>
     </Animated.View>
   );

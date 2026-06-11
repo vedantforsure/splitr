@@ -1,9 +1,11 @@
-import { Modal, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
+import { SheetShell } from '@/components/sheet-shell';
 import { C, FONT } from '@/lib/theme';
 
 // In-language replacement for Alert.alert: same floating #222 card as the
 // entry sheet, dim backdrop, two pill actions. Tapping outside cancels.
+// Confirming plays the sheet's exit first, then runs the action.
 export function ConfirmSheet({
   visible,
   title,
@@ -25,12 +27,9 @@ export function ConfirmSheet({
 }) {
   if (!visible) return null;
   return (
-    <Modal transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable className="flex-1 justify-end bg-black/60" onPress={onClose}>
-        <Pressable
-          className="m-[20px] p-[24px]"
-          style={{ backgroundColor: '#222222', borderRadius: 36 }}
-          onPress={(e) => e.stopPropagation()}>
+    <SheetShell onClose={onClose}>
+      {(close) => (
+        <>
           <Text style={{ fontFamily: FONT, fontSize: 20, lineHeight: 24, letterSpacing: -0.6, color: C.text }}>
             {title}
           </Text>
@@ -42,7 +41,7 @@ export function ConfirmSheet({
 
           <View className="mt-[20px] flex-row gap-[8px]">
             <Pressable
-              onPress={onClose}
+              onPress={() => close()}
               className="flex-1 items-center justify-center py-[16px] transition active:scale-[0.97] active:opacity-80"
               style={{ borderRadius: 999, backgroundColor: '#333333' }}>
               <Text style={{ fontFamily: FONT, fontSize: 17, letterSpacing: -0.51, color: C.text }}>
@@ -50,7 +49,7 @@ export function ConfirmSheet({
               </Text>
             </Pressable>
             <Pressable
-              onPress={onConfirm}
+              onPress={() => close(onConfirm)}
               className="flex-1 items-center justify-center py-[16px] transition active:scale-[0.97] active:opacity-90"
               style={{ borderRadius: 999, backgroundColor: destructive ? C.danger : C.accent }}>
               <Text style={{ fontFamily: FONT, fontSize: 17, letterSpacing: -0.51, color: '#fff' }}>
@@ -58,8 +57,8 @@ export function ConfirmSheet({
               </Text>
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </>
+      )}
+    </SheetShell>
   );
 }

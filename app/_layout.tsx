@@ -38,9 +38,14 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="people" />
           <Stack.Screen name="assign" />
-          <Stack.Screen name="review" />
-          <Stack.Screen name="settle" />
-          <Stack.Screen name="done" />
+          {/* assign and review share the same header + progress bar, so a
+              cross-fade keeps them visually continuous while the content swaps */}
+          <Stack.Screen name="review" options={{ animation: 'fade', animationDuration: 220 }} />
+          {/* Cross-fade instead of slide: the review CTA hands off to the
+              settle CTA mid-fade (see components/cta-morph.tsx) */}
+          <Stack.Screen name="settle" options={{ animation: 'fade', animationDuration: 160 }} />
+          {/* The Finish pill flies into the success circle during this fade */}
+          <Stack.Screen name="done" options={{ animation: 'fade', animationDuration: 240 }} />
           <Stack.Screen name="summary" />
         </Stack>
         <StatusBar style="light" />

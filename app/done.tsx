@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { MotiView } from 'moti';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Easing } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AvatarStack } from '@/components/avatar';
 import { Confetti } from '@/components/confetti';
 import { ConfirmSheet } from '@/components/confirm-sheet';
+import { FinishGhost, finishMorph, Rect } from '@/components/cta-morph';
 import { PrimaryCTA } from '@/components/primary-cta';
 import { actions, HOST_ID, money, roundedTotals, useStore } from '@/lib/store';
 import { C, FONT, T } from '@/lib/theme';
@@ -17,7 +18,10 @@ import { C, FONT, T } from '@/lib/theme';
 /* ─────────────────────────────────────────────────────────
  * ENTRANCE STORYBOARD
  *
- *    0ms   check circle pops in, scale 0.6 → 1.0
+ *    0ms   check circle pops in, scale 0.6 → 1.0 — unless the
+ *          Finish pill is morphing in, in which case the circle
+ *          is the pill's landing spot and everything else waits
+ *          for touchdown (~240ms)
  *  120ms   "All settled" headline rises
  *  200ms   collected-amount copy rises
  *  300ms   crew avatar stack rises
@@ -48,6 +52,28 @@ export default function DoneScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
+  // Finish-pill handoff: consumed once on mount. While the ghost flies, the
+  // real circle stays invisible at the landing rect; everything else holds
+  // for touchdown so the morph leads the entrance.
+  const [handoff] = useState<Rect | null>(() => {
+    const f = finishMorph.from;
+    finishMorph.from = null;
+    return f;
+  });
+  const [target, setTarget] = useState<Rect | null>(null);
+  const [landed, setLanded] = useState(!handoff);
+  const checkRef = useRef<View>(null);
+  const beatOffset = handoff ? 240 : 0;
+
+  const measureCheck = () => {
+    if (!handoff || target) return;
+    requestAnimationFrame(() => {
+      checkRef.current?.measureInWindow((x, y, width, height) => {
+        setTarget({ x, y, width, height });
+      });
+    });
+  };
+
   // Reset wipes the bill and its summary, so it gets a confirm first.
   const [confirmReset, setConfirmReset] = useState(false);
   const splitAnother = () => {
@@ -62,21 +88,28 @@ export default function DoneScreen() {
       <Confetti />
 
       <View className="flex-1 items-center justify-center px-[28px]">
-        <MotiView
-          from={{ scale: 0.6, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'timing', duration: 240, delay: BEAT.check, easing: EASE }}
-          className="h-[88px] w-[88px] items-center justify-center rounded-full"
-          style={{ backgroundColor: C.green }}>
-          <Feather name="check" size={48} color="#fff" />
-        </MotiView>
+        <View ref={checkRef} collapsable={false} onLayout={measureCheck}>
+          <MotiView
+            from={handoff ? { scale: 1, opacity: 0 } : { scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: landed ? 1 : 0 }}
+            transition={{
+              type: 'timing',
+              duration: handoff ? 0 : 240,
+              delay: handoff ? 0 : BEAT.check,
+              easing: EASE,
+            }}
+            className="h-[88px] w-[88px] items-center justify-center rounded-full"
+            style={{ backgroundColor: C.green }}>
+            <Feather name="check" size={48} color="#fff" />
+          </MotiView>
+        </View>
 
-        <MotiView {...rise(BEAT.headline)} className="mt-[24px]">
+        <MotiView {...rise(BEAT.headline + beatOffset)} className="mt-[24px]">
           <Text style={{ fontFamily: FONT, fontSize: T.h1, letterSpacing: -0.78, color: C.text }}>
             All settled
           </Text>
         </MotiView>
-        <MotiView {...rise(BEAT.copy)} className="mt-[10px]">
+        <MotiView {...rise(BEAT.copy + beatOffset)} className="mt-[10px]">
           <Text
             className="text-center"
             style={{ fontFamily: FONT, fontSize: T.body, lineHeight: 23, letterSpacing: -0.48, color: '#AAAAAA' }}>
@@ -85,7 +118,7 @@ export default function DoneScreen() {
           </Text>
         </MotiView>
 
-        <MotiView {...rise(BEAT.avatars)} className="mt-[26px]">
+        <MotiView {...rise(BEAT.avatars + beatOffset)} className="mt-[26px]">
           <AvatarStack people={others} all={state.people} size={48} max={6} borderColor={C.bg} />
         </MotiView>
       </View>
@@ -96,6 +129,11 @@ export default function DoneScreen() {
           <Text style={{ fontFamily: FONT, fontSize: T.body, letterSpacing: -0.48, color: '#AAAAAA' }}>View summary</Text>
         </Pressable>
       </View>
+
+      {/* The Finish pill, mid-flight from the settle screen */}
+      {handoff && target && !landed && (
+        <FinishGhost from={handoff} to={target} onDone={() => setLanded(true)} />
+      )}
 
       <ConfirmSheet
         visible={confirmReset}

@@ -1,8 +1,10 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { MotiView } from 'moti';
+import { ReactNode, useMemo } from 'react';
 import { Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { Easing } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
@@ -24,6 +26,19 @@ const STATUS_LABEL: Record<SettleStatus, string> = {
   requested: 'Requested',
   paid: 'Paid',
 };
+
+// Staggered reveal: the receipt builds down the page — who paid, then items,
+// then totals, then people — instead of appearing as one block.
+function Reveal({ delay, children }: { delay: number; children: ReactNode }) {
+  return (
+    <MotiView
+      from={{ opacity: 0, translateY: 8 }}
+      animate={{ opacity: 1, translateY: 0 }}
+      transition={{ type: 'timing', duration: 200, delay, easing: Easing.bezier(0.23, 1, 0.32, 1) }}>
+      {children}
+    </MotiView>
+  );
+}
 
 export default function SummaryScreen() {
   const state = useStore((s) => s);
@@ -79,18 +94,23 @@ export default function SummaryScreen() {
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
         {/* Who paid */}
-        <View className="mt-[26px] flex-row items-center justify-center gap-[10px]">
-          <Feather name="credit-card" size={18} color={C.green} />
-          <Text style={{ fontFamily: FONT, fontSize: 16, letterSpacing: -0.48, color: '#AAAAAA' }}>
-            You paid the bill of {money(total)}
-          </Text>
-        </View>
+        <Reveal delay={0}>
+          <View className="mt-[26px] flex-row items-center justify-center gap-[10px]">
+            <Feather name="credit-card" size={18} color={C.green} />
+            <Text style={{ fontFamily: FONT, fontSize: 16, letterSpacing: -0.48, color: '#AAAAAA' }}>
+              You paid the bill of {money(total)}
+            </Text>
+          </View>
+        </Reveal>
 
         {/* Items */}
-        <Text className="mb-[12px] mt-[32px]" style={sectionLabel}>What was ordered</Text>
+        <Reveal delay={60}>
+          <Text className="mb-[12px] mt-[32px]" style={sectionLabel}>What was ordered</Text>
+        </Reveal>
         <View className="gap-[12px]">
-          {items.map((it) => (
-            <View key={it.id} className="flex-row items-center justify-between">
+          {items.map((it, i) => (
+            <Reveal key={it.id} delay={60 + Math.min(i, 8) * 30}>
+            <View className="flex-row items-center justify-between">
               <View className="flex-1 gap-[4px] pr-[12px]">
                 <Text style={{ fontFamily: FONT, fontSize: 16, lineHeight: 20, letterSpacing: -0.48, color: C.text }}>
                   {it.name}
@@ -102,24 +122,30 @@ export default function SummaryScreen() {
               </View>
               <Text style={{ fontFamily: FONT, fontSize: 16, letterSpacing: -0.48, color: C.text, fontVariant: ['tabular-nums'] }}>{money(lineTotal(it))}</Text>
             </View>
+            </Reveal>
           ))}
         </View>
 
         {/* Totals */}
-        <View className="mt-[24px] gap-[8px]">
-          <Row label="Subtotal" value={money(subtotal)} />
-          <Row label="GST + service charge" value={money(taxAmount)} />
-          <Row label="Total" value={money(total)} bold />
-        </View>
+        <Reveal delay={180}>
+          <View className="mt-[24px] gap-[8px]">
+            <Row label="Subtotal" value={money(subtotal)} />
+            <Row label="GST + service charge" value={money(taxAmount)} />
+            <Row label="Total" value={money(total)} bold />
+          </View>
+        </Reveal>
 
         {/* Per person */}
-        <Text className="mb-[12px] mt-[32px]" style={sectionLabel}>Who owes what</Text>
+        <Reveal delay={220}>
+          <Text className="mb-[12px] mt-[32px]" style={sectionLabel}>Who owes what</Text>
+        </Reveal>
         <View className="gap-[12px]">
-          {people.map((p) => {
+          {people.map((p, i) => {
             const isHost = p.id === HOST_ID;
             const status: SettleStatus = isHost ? 'paid' : settle[p.id] ?? 'none';
             return (
-              <View key={p.id} className="flex-row items-center gap-[12px]">
+              <Reveal key={p.id} delay={220 + Math.min(i, 8) * 30}>
+              <View className="flex-row items-center gap-[12px]">
                 <Avatar person={p} people={people} size={40} />
                 <View className="flex-1 gap-[4px]">
                   <Text style={{ fontFamily: FONT, fontSize: 16, lineHeight: 20, letterSpacing: -0.48, color: C.text }}>{isHost ? 'You' : p.name}</Text>
@@ -129,6 +155,7 @@ export default function SummaryScreen() {
                 </View>
                 <Text style={{ fontFamily: FONT, fontSize: 16, letterSpacing: -0.48, color: C.text, fontVariant: ['tabular-nums'] }}>{money(rounded[p.id] ?? 0)}</Text>
               </View>
+              </Reveal>
             );
           })}
         </View>
